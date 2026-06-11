@@ -1,0 +1,22 @@
+{
+  "Database": {
+    "Dsn": "NOME_DSN_ODBC",
+    "User": "USUARIO_ODBC",
+    "PasswordEnvironmentVariable": "RM_ORACLE_PASSWORD"
+  },
+  "Company": {
+    "Domain": "empresa.com.br",
+    "SignatureName": "Assinatura Corporativa"
+  },
+  "Install": {
+    "SignaturesSourceFolder": "\\\\SERVIDOR\\Compartilhamento\\Assinaturas"
+  },
+  "Paths": {
+    "AllEmployeesQueryFile": "database/consulta_colaboradores.example.sql",
+    "TemplateFile": "templates/assinatura-modelo.html",
+    "AssetsFolder": "assets",
+    "ImageBaseUrl": "https://assinaturas.empresa.com.br",
+    "LocalOutputFolder": "output/assinaturas",
+    "PngOutputFolder": "output/pngs"
+  }
+}
