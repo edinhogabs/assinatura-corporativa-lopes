@@ -1,0 +1,22 @@
+{
+  "Database": {
+    "Dsn": "RMTESTE",
+    "User": "TARGIT",
+    "PasswordEnvironmentVariable": "RM_ORACLE_PASSWORD"
+  },
+  "Company": {
+    "Domain": "distribuidoralopes.com",
+    "SignatureName": "Assinatura Corporativa Lopes"
+  },
+  "Install": {
+    "SignaturesSourceFolder": "\\\\192.5.1.252\\Publico\\Assinaturas"
+  },
+  "Paths": {
+    "AllEmployeesQueryFile": "database/consulta_colaboradores.sql",
+    "TemplateFile": "templates/assinatura-modelo.html",
+    "AssetsFolder": "assets",
+    "ImageBaseUrl": "https://www.distribuidoralopes.com/assinaturas",
+    "LocalOutputFolder": "\\\\192.5.1.252\\Publico\\Assinaturas",
+    "PngOutputFolder": "output/pngs"
+  }
+}

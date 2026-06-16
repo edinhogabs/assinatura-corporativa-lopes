@@ -1,9 +1,4 @@
-config/config.json
 .env
 logs/
 output/
-pacote-instalador/
-pacote-instalador.zip
 192.*.*.*/
-*.zip
-database/consulta_colaboradores.sql
