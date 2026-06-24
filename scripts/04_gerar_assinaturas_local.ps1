@@ -35,6 +35,19 @@ function Resolve-ConfiguredPath {
     return Join-Path $ProjectRoot $Path
 }
 
+function Remove-FolderContents {
+    param([string]$FolderPath)
+    $skip = @("Thumbs.db", "desktop.ini")
+    Get-ChildItem -LiteralPath $FolderPath -Force | ForEach-Object {
+        if ($_.PSIsContainer) {
+            Remove-FolderContents -FolderPath $_.FullName
+            Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+        } elseif ($_.Name -notin $skip) {
+            Remove-Item -LiteralPath $_.FullName -Force
+        }
+    }
+}
+
 function Clear-OutputFolder {
     param([string]$Path)
 
@@ -48,9 +61,7 @@ function Clear-OutputFolder {
     }
 
     Write-Log "Limpando pasta de saida: $Path"
-    Get-ChildItem -LiteralPath $Path -Force | ForEach-Object {
-        Remove-Item -LiteralPath $_.FullName -Recurse -Force
-    }
+    Remove-FolderContents -FolderPath $Path
 }
 
 function Import-DotEnv {
@@ -124,7 +135,7 @@ function Get-FitFont {
     param(
         [System.Drawing.Graphics]$Graphics,
         [string]$Text,
-        [string]$FontName,
+        [System.Drawing.FontFamily]$FontFamily,
         [float]$StartSize,
         [int]$MaxWidth,
         [System.Drawing.FontStyle]$Style = [System.Drawing.FontStyle]::Regular
@@ -132,7 +143,7 @@ function Get-FitFont {
 
     $size = $StartSize
     while ($size -ge 16) {
-        $font = [System.Drawing.Font]::new($FontName, $size, $Style, [System.Drawing.GraphicsUnit]::Pixel)
+        $font = [System.Drawing.Font]::new($FontFamily, $size, $Style, [System.Drawing.GraphicsUnit]::Pixel)
         $measured = $Graphics.MeasureString($Text, $font)
         if ($measured.Width -le $MaxWidth) {
             return $font
@@ -141,7 +152,54 @@ function Get-FitFont {
         $size -= 2
     }
 
-    return [System.Drawing.Font]::new($FontName, 16, $Style, [System.Drawing.GraphicsUnit]::Pixel)
+    return [System.Drawing.Font]::new($FontFamily, 16, $Style, [System.Drawing.GraphicsUnit]::Pixel)
+}
+
+function Get-FitSize {
+    param(
+        [System.Drawing.Graphics]$Graphics,
+        [string[]]$Texts,
+        [System.Drawing.FontFamily]$FontFamily,
+        [float]$StartSize,
+        [int]$MaxWidth,
+        [System.Drawing.FontStyle]$Style = [System.Drawing.FontStyle]::Regular
+    )
+    $size = $StartSize
+    while ($size -ge 16) {
+        $allFit = $true
+        foreach ($text in $Texts) {
+            $font = [System.Drawing.Font]::new($FontFamily, $size, $Style, [System.Drawing.GraphicsUnit]::Pixel)
+            $fits = $Graphics.MeasureString($text, $font).Width -le $MaxWidth
+            $font.Dispose()
+            if (-not $fits) { $allFit = $false; break }
+        }
+        if ($allFit) { return $size }
+        $size -= 2
+    }
+    return 16.0
+}
+
+function Initialize-FontCollections {
+    param([string]$FontsFolder)
+
+    $boldPfc   = [System.Drawing.Text.PrivateFontCollection]::new()
+    $mediumPfc = [System.Drawing.Text.PrivateFontCollection]::new()
+
+    $boldPath   = Join-Path $FontsFolder "AkzidenzGroteskBQ-BdCndAlt.ttf"
+    $mediumPath = Join-Path $FontsFolder "AkzidenzGroteskBQ-MdCndAlt.ttf"
+
+    if (Test-Path -LiteralPath $boldPath)   { $boldPfc.AddFontFile($boldPath) }
+    if (Test-Path -LiteralPath $mediumPath) { $mediumPfc.AddFontFile($mediumPath) }
+
+    $boldFamily   = if ($boldPfc.Families.Count   -gt 0) { $boldPfc.Families[0]   } else { [System.Drawing.FontFamily]::new("Arial") }
+    $mediumFamily = if ($mediumPfc.Families.Count -gt 0) { $mediumPfc.Families[0] } else { [System.Drawing.FontFamily]::new("Arial Narrow") }
+
+    return @{
+        BoldCollection   = $boldPfc
+        MediumCollection = $mediumPfc
+        BoldFamily       = $boldFamily
+        MediumFamily     = $mediumFamily
+    }
 }
 
 function New-SignaturePreviewPng {
@@ -152,6 +210,10 @@ function New-SignaturePreviewPng {
     if (-not (Test-Path -LiteralPath $backgroundPath)) {
         return
     }
+
+    $fonts        = Initialize-FontCollections -FontsFolder (Join-Path $ProjectRoot "fontes")
+    $boldFamily   = $fonts.BoldFamily
+    $mediumFamily = $fonts.MediumFamily
 
     $signatureName = $Config.Company.SignatureName
     $outputPath = Join-Path $Destination "$signatureName.png"
@@ -180,11 +242,12 @@ function New-SignaturePreviewPng {
             $phone = Format-Phone $Employee.TELEFONE
             $site = ($Employee.SITE | Out-String).Trim()
 
-            $nameFont = Get-FitFont -Graphics $graphics -Text $name -FontName "Arial" -StartSize 48 -MaxWidth 420 -Style ([System.Drawing.FontStyle]::Bold)
-            $roleFont = Get-FitFont -Graphics $graphics -Text $role -FontName "Arial Narrow" -StartSize 36 -MaxWidth 420
-            $contactFont = Get-FitFont -Graphics $graphics -Text $email -FontName "Arial" -StartSize 27 -MaxWidth 390 -Style ([System.Drawing.FontStyle]::Bold)
-            $phoneFont = Get-FitFont -Graphics $graphics -Text $phone -FontName "Arial" -StartSize 27 -MaxWidth 390 -Style ([System.Drawing.FontStyle]::Bold)
-            $siteFont = Get-FitFont -Graphics $graphics -Text $site -FontName "Arial" -StartSize 27 -MaxWidth 390 -Style ([System.Drawing.FontStyle]::Bold)
+            $nameFont    = Get-FitFont -Graphics $graphics -Text $name  -FontFamily $boldFamily   -StartSize 48 -MaxWidth 420
+            $roleFont    = Get-FitFont -Graphics $graphics -Text $role  -FontFamily $mediumFamily -StartSize 36 -MaxWidth 420
+            $contactSize = Get-FitSize -Graphics $graphics -Texts @($email, $phone, $site) -FontFamily $mediumFamily -StartSize 27 -MaxWidth 390
+            $contactFont = [System.Drawing.Font]::new($mediumFamily, $contactSize, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+            $phoneFont   = [System.Drawing.Font]::new($mediumFamily, $contactSize, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+            $siteFont    = [System.Drawing.Font]::new($mediumFamily, $contactSize, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
 
             try {
                 $graphics.DrawString($name, $nameFont, $blueBrush, 482, 82)
@@ -225,6 +288,8 @@ function New-SignaturePreviewPng {
         $graphics.Dispose()
         $bitmap.Dispose()
         $background.Dispose()
+        $fonts.BoldCollection.Dispose()
+        $fonts.MediumCollection.Dispose()
     }
 }
 
@@ -358,6 +423,7 @@ try {
     }
 
     Clear-OutputFolder -Path $outputRoot
+    Clear-OutputFolder -Path $pngOutputRoot
     New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
     New-Item -ItemType Directory -Force -Path $pngOutputRoot | Out-Null
 
